@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>เกมจับคู่ภาพ 4x4</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: "Prompt", sans-serif;
+    background: #111;
+    overflow-x: hidden;
+}
+
+/* -------- หน้าเริ่มเกม -------- */
+#start-screen {
+    position: fixed;
+    inset: 0;
+    background-image: url('images/bg.jpg');
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+#start-screen .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+}
+
+#start-screen .content {
+    position: relative;
+    z-index: 2;
+    color: white;
+    text-align: center;
+}
+
+#start-screen h1 {
+    font-size: 3rem;
+    margin-bottom: 30px;
+}
+
+/* ปุ่ม */
+button {
+    padding: 12px 35px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(45deg, #ffcc00, #ff9900);
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+/* ----- ใบไม้ตกบนหน้าเมนู ----- */
+.leaf {
+    position: fixed;
+    top: -100px;
+    z-index: 1;
+    opacity: 0.8;
+    animation: fall linear infinite;
+    pointer-events: none;
+}
+
+@keyframes fall {
+    0% {
+        transform: translateX(0) rotate(0deg);
+        top: -100px;
+    }
+    100% {
+        transform: translateX(var(--x, 200px)) rotate(360deg);
+        top: 110%;
+    }
+}
+
+/* -------- หน้าเกม -------- */
+#game-container {
+    color: white;
+    text-align: center;
+    padding-top: 20px;
+    display: none;
+
+    background-image: url('images/bangmoonnak01.jpg'); /* พื้นหลังเกม */
+    background-size: cover;
+    background-position: center;
+    min-height: 100vh;
+}
+
+#back-menu {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+
+#score {
+    font-size: 1.8rem;
+    margin-top: 10px;
+}
+
+#game {
+    width: 420px;
+    margin: 40px auto;
+    display: grid;
+    grid-template-columns: repeat(4, 100px);
+    gap: 10px;
+}
+
+/* -------- การ์ด -------- */
+.card {
+    width: 100px;
+    height: 100px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform .4s;
+    cursor: pointer;
+}
+
+.card.flip {
+    transform: rotateY(180deg);
+}
+
+.front, .back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: 8px;
+}
+
+.back {
+    background: #555;
+}
+
+.front {
+    transform: rotateY(180deg);
+    background-size: cover;
+    background-position: center;
+}
+
+/* -------- หน้าชนะ -------- */
+#win-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,1); 
+    color: white;
+
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    text-align: center;
+    z-index: 2000;
+}
+
+#win-screen h1 {
+    font-size: 3rem;
+    margin-bottom: 20px;
+}
+
+#win-screen h2 {
+    font-size: 2rem;
+    margin-bottom: 30px;
+}
+
+#win-screen button {
+    margin-top: 15px;
+}
+</style>
+</head>
+
+
+<body>
+
+<!-- -------------- หน้าเริ่มเกม -------------- -->
+<div id="start-screen">
+    <div class="overlay"></div>
+    <div class="content">
+        <h1>เกมจับคู่ภาพ</h1>
+        <button id="start-btn">เริ่มเกม</button>
+    </div>
+</div>
+
+<!-- -------------- หน้าเกม -------------- -->
+<div id="game-container">
+
+    <button id="back-menu">← เมนู</button>
+
+    <div id="score">คะแนน: 0</div>
+
+    <div id="game"></div>
+</div>
+
+<!-- -------------- หน้าชนะ -------------- -->
+<div id="win-screen">
+    <h1>🎉 ชนะแล้ว! 🎉</h1>
+    <h2 id="final-score"></h2>
+    <button id="back-menu-2">กลับเมนู</button>
+</div>
+
+
+<script>
+const imagesList = [
+    "images/1.png",
+    "images/2.png",
+    "images/3.png",
+    "images/4.png",
+    "images/5.png",
+    "images/6.png",
+    "images/7.png",
+    "images/8.png"
+];
+
+let score = 0;
+let matched = 0;
+let lock = false;
+let first = null;
+let second = null;
+
+// ---------------- ใบไม้ตก ----------------
+function createLeaf() {
+    const leaf = document.createElement("img");
+    leaf.src = "images/ขนาดเว็บวันนากโลก.jpg"; // ต้องมีไฟล์นี้
+    leaf.classList.add("leaf");
+
+    leaf.style.left = Math.random() * window.innerWidth + "px";
+    leaf.style.width = 20 + Math.random() * 40 + "px"; // ขนาดต่างกัน
+    leaf.style.opacity = 0.5 + Math.random() * 0.5;
+    leaf.style.setProperty('--x', (50 + Math.random() * 200) + 'px');
+    leaf.style.animationDuration = 3 + Math.random() * 5 + "s";
+
+    document.body.appendChild(leaf);
+
+    setTimeout(() => leaf.remove(), 8000);
+}
+
+setInterval(() => {
+    if (document.getElementById("start-screen").style.display !== "none") {
+        // สร้างใบไม้หลายใบพร้อมกัน
+        for (let i = 0; i < 3; i++) {
+            createLeaf();
+        }
+    }
+}, 200); // สร้างทุก 0.2 วินาที
+
+// ---------------- เริ่มเกม ----------------
+function startGame() {
+    score = 0;
+    matched = 0;
+    updateScore();
+
+    const game = document.getElementById("game");
+    game.innerHTML = "";
+
+    let cards = [...imagesList, ...imagesList];
+    cards.sort(() => Math.random() - 0.5);
+
+    cards.forEach(img => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+
+        card.innerHTML = `
+            <div class="front" style="background-image:url('${img}')"></div>
+            <div class="back"></div>
+        `;
+
+        game.appendChild(card);
+    });
+
+    setupCardEvents();
+}
+
+// ---------------- อัพเดทคะแนน ----------------
+function updateScore() {
+    document.getElementById("score").innerText = "คะแนน: " + score;
+}
+
+// ---------------- การเล่น ----------------
+function setupCardEvents() {
+    document.querySelectorAll(".card").forEach(card => {
+        card.onclick = () => {
+            if (lock || card === first || card.classList.contains("flip")) return;
+
+            card.classList.add("flip");
+
+            if (!first) {
+                first = card;
+            } else {
+                second = card;
+                checkMatch();
+            }
+        };
+    });
+}
+
+function checkMatch() {
+    if (first.children[0].style.backgroundImage === second.children[0].style.backgroundImage) {
+
+        score += 10;
+        matched += 2;
+        updateScore();
+
+        first = null;
+        second = null;
+
+        if (matched === 16) {
+            setTimeout(showWin, 500);
+        }
+
+    } else {
+        score -= 2;
+        updateScore();
+        lock = true;
+
+        setTimeout(() => {
+            first.classList.remove("flip");
+            second.classList.remove("flip");
+            first = null;
+            second = null;
+            lock = false;
+        }, 900);
+    }
+}
+
+// ---------------- หน้าชนะ ----------------
+function showWin() {
+    document.getElementById("final-score").innerText = "คะแนนรวม: " + score;
+
+    document.getElementById("game-container").style.display = "none";
+    document.getElementById("win-screen").style.display = "flex";
+}
+
+
+// ---------------- ปุ่มต่าง ๆ ----------------
+document.getElementById("start-btn").onclick = () => {
+    document.getElementById("start-screen").style.display = "none";
+    document.getElementById("game-container").style.display = "block";
+    startGame();
+};
+
+document.getElementById("back-menu").onclick =
+document.getElementById("back-menu-2").onclick = () => {
+    location.reload();
+};
+</script>
+
+</body>
+</html>
